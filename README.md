@@ -28,7 +28,7 @@ Install the CLI with cargo:
 
 ```sh
 cargo install --locked --git https://github.com/tftio/planner
-cargo install --locked --git https://github.com/tftio/planner --tag v0.5.2  # a specific release
+cargo install --locked --git https://github.com/tftio/planner --tag v0.5.3  # a specific release
 ```
 
 To build from a checkout, run `cargo build --locked`.
@@ -84,7 +84,7 @@ tag:
 
 ```toml
 [dependencies]
-tftio-planner = { git = "https://github.com/tftio/planner", tag = "v0.5.2" }
+tftio-planner = { git = "https://github.com/tftio/planner", tag = "v0.5.3" }
 ```
 
 A consumer of the CLI pins it the same way, by tag or commit, through
