@@ -1,0 +1,12 @@
+# Managed by Copier — do not edit by hand.
+# Update with: copier update --answers-file .copier-answers.base.yml
+_src_path: project-templates/base
+author_email: j@tft.io
+author_name: jfb
+description: Authoritative planning-document library and CLI
+init_git: false
+package_slug: tftio_planner
+project_kind: rust-cli
+project_name: planner
+publish: false
+release_binaries: false

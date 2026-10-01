@@ -1,0 +1,845 @@
+# Planning Document Format cross-validator fixture manifest.
+#
+# Two independent implementations have decided whether a document is a valid
+# plan: a `check-plan` Python validator, now retired, and the `planner` crate. A
+# document that passes one and fails the other makes validity a function of which
+# tool ran, so this manifest is the one artifact every validator reads. A consumer
+# that pins a planner build can run the same table against that build.
+#
+# A `case` is a baseline document with one anchor replaced, so a verdict is
+# attributable to exactly one rule. A harness materialises each case, runs its
+# validator over it, and compares the verdict to `expect`.
+#
+# A `rule` names one statement the Planning Document Format v2 section of
+# PLAN_SPEC.md makes. `spec_quote` must occur verbatim in that section; `covers`
+# lists the enforced statements the rule accounts for, and every statement in the
+# spec's five enforced lists is claimed by exactly one rule.
+#
+# `diagnostic` pins the message each validator emits, so the table records which
+# rule fired in each implementation and not merely that something did. The two
+# validators word most of their diagnostics differently; where the spec mandates
+# the wording -- the two `removed in v2` messages -- they are identical.
+#
+# `divergence` records a validator that does NOT agree, with the decision that
+# dispositioned it. A divergence is documented here, never resolved by weakening
+# the fixture: the case still says what the spec says, and the field records which
+# implementation does not yet enforce it.
+
+version = 1
+
+# --- Baseline documents -------------------------------------------------------
+
+[[case]]
+id = "v2-baseline"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "valid"
+why = "The v2 document every v2 case is one edit away from."
+
+[[case]]
+id = "v2-frontmatter-unknown-key"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "valid"
+find = "status: approved\n"
+replace = "status: approved\nextra_note: tolerated by v2\n"
+why = "An unknown key that is not `mode` is tolerated."
+
+[[case]]
+id = "v2-verdict-recorded"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "valid"
+find = "        counterfactual: A worker given the canary could optimize output around it.\n"
+replace = "        counterfactual: A worker given the canary could optimize output around it.\n        verdict: pass\n        rationale: The canary was absent from every artefact.\n"
+why = "A ledger-written verdict on a hidden criterion."
+
+# --- v1 regression and known v1 divergences -----------------------------------
+#
+# v2 was added beside v1, never over it. These cases ask both validators the v1
+# question, and pin the three places where the two already disagreed on v1 before
+# this fixture corpus existed.
+
+[[case]]
+id = "v1-single-baseline"
+baseline = "2026-09-10-format-v1-single-baseline.md"
+expect = "valid"
+why = "A `mode: single` v1 plan validates unchanged after v2 exists."
+
+[[case]]
+id = "v1-multi-baseline"
+baseline = "2026-09-10-format-v1-multi-baseline.md"
+expect = "valid"
+why = "A `mode: multi` v1 plan, with authored `blocks`, validates unchanged after v2 exists."
+
+[[case]]
+id = "v1-single-mode-absent"
+baseline = "2026-09-10-format-v1-single-baseline.md"
+expect = "invalid"
+find = "mode: single\n"
+replace = ""
+why = "v1 still requires the key v2 rejects."
+diagnostic.planner = "frontmatter missing required key: mode"
+diagnostic.check_plan = "frontmatter missing required key: mode"
+
+[[case]]
+id = "v1-multi-files-empty-mapping"
+baseline = "2026-09-10-format-v1-multi-baseline.md"
+expect = "invalid"
+find = "    files:\n      likely_read:\n        - src/markdown.rs\n      likely_modify: []\n"
+replace = "    files: {}\n"
+divergence = "planner"
+why = "Known v1 divergence, recorded by T005 deviation 4: planner defaults the two keys under v1."
+diagnostic.check_plan = "task T001 files must be a mapping with likely_read and likely_modify lists"
+
+[[case]]
+id = "v1-multi-owner-key-absent"
+baseline = "2026-09-10-format-v1-multi-baseline.md"
+expect = "invalid"
+find = "    status: not_started\n    owner: null\n"
+replace = "    status: not_started\n"
+divergence = "planner"
+why = "Known v1 divergence, recorded by T005 deviation 4: planner defaults the key under v1."
+diagnostic.check_plan = "task T001 missing required field: owner"
+
+[[case]]
+id = "v1-version-float"
+baseline = "2026-09-10-format-v1-single-baseline.md"
+expect = "invalid"
+find = "plan_format_version: 1"
+replace = "plan_format_version: 1.0"
+divergence = "check-plan"
+why = "Known v1 divergence, recorded by D010: `1.0 != 1` is false in Python, so check-plan accepts it."
+diagnostic.planner = "plan_format_version: invalid type: floating point `1.0`, expected u32 at line 1 column 22"
+
+# --- v2 rules -----------------------------------------------------------------
+
+[[rule]]
+id = "v2-frontmatter-required-keys"
+spec_quote = "- Required keys, exactly these: `plan_format_version`, `plan_id`, `title`, `status`,"
+passing = "v2-baseline"
+covers = ["- Required keys, exactly these: `plan_format_version`, `plan_id`, `title`, `status`,"]
+
+[[case]]
+id = "v2-frontmatter-key-absent"
+rule = "v2-frontmatter-required-keys"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "plan_id: PLAN-20260910-format-v2-baseline\n"
+replace = ""
+diagnostic.planner = "missing field `plan_id`"
+diagnostic.check_plan = "frontmatter missing required key: plan_id"
+
+[[rule]]
+id = "v2-frontmatter-mode-rejected"
+spec_quote = "- **A v2 plan that declares `mode` is invalid.** The key is rejected, not ignored. The"
+passing = "v2-baseline"
+covers = ["- **A v2 plan that declares `mode` is invalid.** The key is rejected, not ignored. The"]
+
+[[case]]
+id = "v2-frontmatter-declares-mode"
+rule = "v2-frontmatter-mode-rejected"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "status: approved\n"
+replace = "status: approved\nmode: multi\n"
+diagnostic.planner = "frontmatter declares 'mode', which Planning Document Format v2 removed. Concurrency is a property of how a plan is executed, not of the document; v2 has one shape. Delete the key."
+diagnostic.check_plan = "frontmatter declares 'mode', which Planning Document Format v2 removed. Concurrency is a property of how a plan is executed, not of the document; v2 has one shape. Delete the key."
+
+[[rule]]
+id = "v2-frontmatter-version-is-two"
+spec_quote = "- `plan_format_version` is the integer `2`."
+passing = "v2-baseline"
+covers = ["- `plan_format_version` is the integer `2`."]
+
+[[case]]
+id = "v2-frontmatter-version-not-an-integer"
+rule = "v2-frontmatter-version-is-two"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "plan_format_version: 2"
+replace = "plan_format_version: 2.0"
+diagnostic.planner = "plan_format_version: invalid type: floating point `2.0`, expected u32 at line 1 column 22"
+diagnostic.check_plan = "frontmatter plan_format_version must be 1 or 2"
+
+[[rule]]
+id = "v2-frontmatter-non-empty-strings"
+spec_quote = "- `plan_id`, `title`, and `owner` are non-empty strings."
+passing = "v2-baseline"
+covers = ["- `plan_id`, `title`, and `owner` are non-empty strings."]
+
+[[case]]
+id = "v2-frontmatter-empty-plan-id"
+rule = "v2-frontmatter-non-empty-strings"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "plan_id: PLAN-20260910-format-v2-baseline"
+replace = "plan_id: \"\""
+diagnostic.planner = "plan id must not be empty"
+diagnostic.check_plan = "frontmatter plan_id must be a non-empty string"
+
+[[rule]]
+id = "v2-frontmatter-status-enum"
+spec_quote = "- `status` is one of `draft`, `approved`, `implemented`, `abandoned`."
+passing = "v2-baseline"
+covers = ["- `status` is one of `draft`, `approved`, `implemented`, `abandoned`."]
+
+[[case]]
+id = "v2-frontmatter-status-outside-enum"
+rule = "v2-frontmatter-status-enum"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "status: approved\n"
+replace = "status: pending\n"
+diagnostic.planner = "invalid plan status: pending"
+diagnostic.check_plan = "frontmatter status must be one of ['abandoned', 'approved', 'draft', 'implemented']"
+
+[[rule]]
+id = "v2-frontmatter-dates"
+spec_quote = "- `created_at` and `updated_at` match `YYYY-MM-DD`."
+passing = "v2-baseline"
+covers = ["- `created_at` and `updated_at` match `YYYY-MM-DD`."]
+
+[[case]]
+id = "v2-frontmatter-malformed-date"
+rule = "v2-frontmatter-dates"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "updated_at: 2026-09-10"
+replace = "updated_at: 10/09/2026"
+diagnostic.planner = "frontmatter updated_at must be a YYYY-MM-DD date"
+diagnostic.check_plan = "frontmatter updated_at must be a YYYY-MM-DD date"
+
+[[rule]]
+id = "v2-frontmatter-nested-mappings"
+spec_quote = "- `source`, `bug`, and `execution` are mappings containing the keys shown above;"
+passing = "v2-baseline"
+covers = ["- `source`, `bug`, and `execution` are mappings containing the keys shown above;"]
+
+[[case]]
+id = "v2-frontmatter-source-type-outside-enum"
+rule = "v2-frontmatter-nested-mappings"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "  type: manual"
+replace = "  type: jira"
+diagnostic.planner = "invalid source type: jira"
+diagnostic.check_plan = "frontmatter source.type must be one of ['asana', 'github', 'gitlab', 'linear', 'manual', 'other']"
+
+[[rule]]
+id = "v2-frontmatter-unknown-keys-tolerated"
+spec_quote = "- No other key is required. Unknown keys other than `mode` are not rejected."
+passing = "v2-frontmatter-unknown-key"
+covers = ["- No other key is required. Unknown keys other than `mode` are not rejected."]
+
+[[case]]
+id = "v2-frontmatter-unknown-key-is-mode"
+rule = "v2-frontmatter-unknown-keys-tolerated"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "status: approved\n"
+replace = "status: approved\nmode: single\n"
+diagnostic.planner = "frontmatter declares 'mode', which Planning Document Format v2 removed. Concurrency is a property of how a plan is executed, not of the document; v2 has one shape. Delete the key."
+diagnostic.check_plan = "frontmatter declares 'mode', which Planning Document Format v2 removed. Concurrency is a property of how a plan is executed, not of the document; v2 has one shape. Delete the key."
+
+[[rule]]
+id = "v2-frontmatter-project"
+spec_quote = "- **`project`, when present, maps the plan onto the fleet's shared project identity.**"
+passing = "v2-frontmatter-project-present"
+covers = ["- **`project`, when present, maps the plan onto the fleet's shared project identity.**"]
+
+[[case]]
+id = "v2-frontmatter-project-present"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "valid"
+find = "  task_graph_status: ready\n"
+replace = "  task_graph_status: ready\nproject:\n  slug: kb\n  remote: github.com/tftio/kb\n"
+why = "An optional project mapping with an already-normalized remote is valid."
+
+[[case]]
+id = "v2-frontmatter-project-bad-slug"
+rule = "v2-frontmatter-project"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "  task_graph_status: ready\n"
+replace = "  task_graph_status: ready\nproject:\n  slug: KB\n"
+divergence = "check-plan"
+why = "check-plan does not model project yet (T011): an unrecognised key's value is opaque to it, so it accepts the malformed slug. planner validates project.slug against tftio_lib::project::Slug."
+diagnostic.planner = "project.slug is invalid: slug \"KB\" does not match ^[a-z0-9][a-z0-9-]*$: must start with a lowercase ASCII letter or digit"
+
+[[case]]
+id = "v2-frontmatter-project-unnormalized-remote"
+rule = "v2-frontmatter-project"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "  task_graph_status: ready\n"
+replace = "  task_graph_status: ready\nproject:\n  slug: kb\n  remote: git@github.com:tftio/kb.git\n"
+divergence = "check-plan"
+why = "check-plan does not model project yet (T011). planner requires project.remote to already be normalized: normalize_remote(remote) must equal remote."
+diagnostic.planner = "project.remote \"git@github.com:tftio/kb.git\" unnormalized: expected github.com/tftio/kb"
+
+[[rule]]
+id = "v2-adr-block-required"
+spec_quote = "1. `# ADR: ...` (H1; the title after the colon may vary)"
+passing = "v2-baseline"
+covers = [
+  "1. `# ADR: ...` (H1; the title after the colon may vary)",
+  "2. `## Problem Statement` — understandable to an agent with no prior conversation context.",
+  "3. `## Source Material` — with `### Ticket` and `### Discussion Summary` subsections.",
+  "4. `## Context` — existing behavior, expected behavior, observed failure, repro.",
+  "5. `## Constraints`",
+  "6. `## Non-Goals`",
+  "7. `## Decision` — enough detail that independent agents need not re-litigate the approach.",
+  "8. `## Alternatives Considered`",
+  "9. `## Consequences`",
+]
+
+[[case]]
+id = "v2-adr-section-absent"
+rule = "v2-adr-block-required"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "## Constraints\n"
+replace = "## Unrelated Aside\n"
+diagnostic.planner = "missing or empty required heading: constraints"
+diagnostic.check_plan = "missing required heading: ## constraints"
+
+[[rule]]
+id = "v2-adr-block-ordered"
+spec_quote = "The ADR block is order-enforced."
+passing = "v2-baseline"
+covers = []
+
+[[case]]
+id = "v2-adr-sections-out-of-order"
+rule = "v2-adr-block-ordered"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "## Constraints\n\nUse LF line endings.\n\n## Non-Goals\n\nExercising mutation, projection, or any v1 rule.\n"
+replace = "## Non-Goals\n\nExercising mutation, projection, or any v1 rule.\n\n## Constraints\n\nUse LF line endings.\n"
+diagnostic.planner = "ADR headings are present but out of order"
+diagnostic.check_plan = "ADR headings are present but out of order"
+
+[[rule]]
+id = "v2-operator-guidance-log-required"
+spec_quote = "- `## Operator Guidance Log` — append-only; agents add a dated entry whenever they need"
+passing = "v2-baseline"
+covers = ["- `## Operator Guidance Log` — append-only; agents add a dated entry whenever they need"]
+
+[[case]]
+id = "v2-operator-guidance-log-absent"
+rule = "v2-operator-guidance-log-required"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "## Operator Guidance Log\n"
+replace = "## Aside\n"
+diagnostic.planner = "Operator Guidance Log must be present and non-empty"
+diagnostic.check_plan = "missing required heading: ## operator guidance log"
+
+[[rule]]
+id = "v2-decision-log-required"
+spec_quote = "- `## Decision Log` — append-only; decisions affecting architecture, behavior,"
+passing = "v2-baseline"
+covers = ["- `## Decision Log` — append-only; decisions affecting architecture, behavior,"]
+
+[[case]]
+id = "v2-decision-log-absent"
+rule = "v2-decision-log-required"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "## Decision Log\n"
+replace = "## Aside\n"
+diagnostic.planner = "Decision Log must be present and non-empty"
+diagnostic.check_plan = "missing required heading: ## decision log"
+
+[[rule]]
+id = "v2-task-graph-required"
+spec_quote = "- `# Task Graph` — the machine-readable DAG, between its markers."
+passing = "v2-baseline"
+covers = ["- `# Task Graph` — the machine-readable DAG, between its markers."]
+
+[[case]]
+id = "v2-task-graph-heading-absent"
+rule = "v2-task-graph-required"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "# Task Graph\n\n<!-- TASK_GRAPH:BEGIN -->"
+replace = "# Graph\n\n<!-- TASK_GRAPH:BEGIN -->"
+diagnostic.planner = "missing required heading: # task graph"
+diagnostic.check_plan = "missing required heading: # task graph"
+
+[[rule]]
+id = "v2-task-details-required"
+spec_quote = "- `# Task Details` — one subsection per task."
+passing = "v2-baseline"
+covers = ["- `# Task Details` — one subsection per task."]
+
+[[case]]
+id = "v2-task-details-heading-absent"
+rule = "v2-task-details-required"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "# Task Details\n"
+replace = "# Details\n"
+diagnostic.planner = "missing required heading: # task details"
+diagnostic.check_plan = "missing required heading: # task details"
+
+[[rule]]
+id = "v2-execution-protocol-required"
+spec_quote = "- `# Execution Protocol` — the rules executing agents follow."
+passing = "v2-baseline"
+covers = ["- `# Execution Protocol` — the rules executing agents follow."]
+
+[[case]]
+id = "v2-execution-protocol-absent"
+rule = "v2-execution-protocol-required"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "# Execution Protocol\n"
+replace = "# Aside\n"
+diagnostic.planner = "Execution Protocol must be present and non-empty"
+diagnostic.check_plan = "missing required heading: # execution protocol"
+
+[[rule]]
+id = "v2-no-empty-required-section"
+spec_quote = "No required section may be empty; placeholder or boilerplate-only text counts as empty."
+passing = "v2-baseline"
+covers = []
+
+[[case]]
+id = "v2-required-section-empty"
+rule = "v2-no-empty-required-section"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "## Consequences\n\nA v2 plan carries the two logs and the Execution Protocol unconditionally.\n"
+replace = "## Consequences\n\n"
+diagnostic.planner = "missing or empty required heading: consequences"
+diagnostic.check_plan = "required section is empty: ## consequences"
+
+[[rule]]
+id = "v2-task-required-fields"
+spec_quote = "Required per-task fields, on every task: `id`, `title`, `status`, `depends_on`,"
+passing = "v2-baseline"
+covers = []
+
+[[case]]
+id = "v2-task-field-absent"
+rule = "v2-task-required-fields"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    status: not_started\n    owner: null\n"
+replace = "    status: not_started\n"
+diagnostic.planner = "task T001 missing required field: owner"
+diagnostic.check_plan = "task T001 missing required field: owner"
+
+[[rule]]
+id = "v2-task-id-format"
+spec_quote = "- `id` matches `T` followed by at least three digits (`T001`), and is unique in the plan."
+passing = "v2-baseline"
+covers = ["- `id` matches `T` followed by at least three digits (`T001`), and is unique in the plan."]
+
+[[case]]
+id = "v2-task-id-malformed"
+rule = "v2-task-id-format"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "  - id: T001\n"
+replace = "  - id: TASK1\n"
+diagnostic.planner = "task id `TASK1` must match T followed by at least three ASCII digits"
+diagnostic.check_plan = "task TASK1 has invalid id (must match T###)"
+
+[[rule]]
+id = "v2-task-title-description-non-empty"
+spec_quote = "- `title` and `description` are non-empty strings."
+passing = "v2-baseline"
+covers = ["- `title` and `description` are non-empty strings."]
+
+[[case]]
+id = "v2-task-description-empty"
+rule = "v2-task-title-description-non-empty"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    description: Parse representative v2 input.\n"
+replace = "    description: \"\"\n"
+diagnostic.planner = "task T001 description must be non-empty"
+diagnostic.check_plan = "task T001 description must be non-empty"
+
+[[rule]]
+id = "v2-task-status-enum"
+spec_quote = "- `status` is one of `not_started`, `ready`, `in_progress`, `blocked`, `done`,"
+passing = "v2-baseline"
+covers = ["- `status` is one of `not_started`, `ready`, `in_progress`, `blocked`, `done`,"]
+
+[[case]]
+id = "v2-task-status-outside-enum"
+rule = "v2-task-status-enum"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    status: not_started\n    owner: null\n"
+replace = "    status: pending\n    owner: null\n"
+diagnostic.planner = "invalid task status: pending"
+diagnostic.check_plan = "task T001 status must be one of ['abandoned', 'blocked', 'done', 'in_progress', 'not_started', 'ready']"
+
+[[rule]]
+id = "v2-task-depends-on-list"
+spec_quote = "- `depends_on` is a list of task ids, possibly empty."
+passing = "v2-baseline"
+covers = ["- `depends_on` is a list of task ids, possibly empty."]
+
+[[case]]
+id = "v2-task-depends-on-not-a-list"
+rule = "v2-task-depends-on-list"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    depends_on: []\n"
+replace = "    depends_on: T002\n"
+diagnostic.planner = "tasks[0].depends_on: invalid type: string \"T002\", expected a sequence at line 6 column 17"
+diagnostic.check_plan = "task T001 depends_on must be a list"
+
+[[rule]]
+id = "v2-task-owner-present-nullable"
+spec_quote = "- `owner` is present and may be `null`."
+passing = "v2-baseline"
+covers = ["- `owner` is present and may be `null`."]
+
+[[case]]
+id = "v2-task-owner-key-absent"
+rule = "v2-task-owner-present-nullable"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    owner: test\n"
+replace = ""
+diagnostic.planner = "task T002 missing required field: owner"
+diagnostic.check_plan = "task T002 missing required field: owner"
+
+[[rule]]
+id = "v2-task-work-items-non-empty"
+spec_quote = "- `work_items` is a non-empty list."
+passing = "v2-baseline"
+covers = ["- `work_items` is a non-empty list."]
+
+[[case]]
+id = "v2-task-work-items-empty"
+rule = "v2-task-work-items-non-empty"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    work_items:\n      - Read the frontmatter under the v2 rule set.\n"
+replace = "    work_items: []\n"
+diagnostic.planner = "task T001 work_items must be a non-empty list"
+diagnostic.check_plan = "task T001 work_items must be a non-empty list"
+
+[[rule]]
+id = "v2-task-invariants-non-empty"
+spec_quote = "- `invariants` is a non-empty list."
+passing = "v2-baseline"
+covers = ["- `invariants` is a non-empty list."]
+
+[[case]]
+id = "v2-task-invariants-empty"
+rule = "v2-task-invariants-non-empty"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    invariants:\n      - Source bytes remain unchanged.\n"
+replace = "    invariants: []\n"
+diagnostic.planner = "task T001 invariants must be a non-empty list"
+diagnostic.check_plan = "task T001 invariants must be a non-empty list"
+
+[[rule]]
+id = "v2-task-acceptance-checks-non-empty"
+spec_quote = "- `acceptance_checks` is a non-empty list."
+passing = "v2-baseline"
+covers = ["- `acceptance_checks` is a non-empty list."]
+
+[[case]]
+id = "v2-task-acceptance-checks-empty"
+rule = "v2-task-acceptance-checks-non-empty"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    acceptance_checks:\n      - The typed task is available.\n"
+replace = "    acceptance_checks: []\n"
+diagnostic.planner = "task T001 acceptance_checks must be a non-empty list"
+diagnostic.check_plan = "task T001 acceptance_checks must be a non-empty list"
+
+[[rule]]
+id = "v2-task-completion-evidence-present"
+spec_quote = "- `completion_evidence` is present, may be `null`, and must be a non-empty string when"
+passing = "v2-baseline"
+covers = ["- `completion_evidence` is present, may be `null`, and must be a non-empty string when"]
+
+[[case]]
+id = "v2-task-completion-evidence-key-absent"
+rule = "v2-task-completion-evidence-present"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    completion_evidence: null\n  - id: T002"
+replace = "  - id: T002"
+diagnostic.planner = "task T001 missing required field: completion_evidence"
+diagnostic.check_plan = "task T001 missing required field: completion_evidence"
+
+[[rule]]
+id = "v2-task-blocks-rejected"
+spec_quote = "- **A v2 task that declares `blocks` is invalid.** As with `mode`, the field is rejected"
+passing = "v2-baseline"
+covers = ["- **A v2 task that declares `blocks` is invalid.** As with `mode`, the field is rejected"]
+
+[[case]]
+id = "v2-task-declares-blocks"
+rule = "v2-task-blocks-rejected"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    depends_on: []\n"
+replace = "    depends_on: []\n    blocks:\n      - T002\n"
+diagnostic.planner = "task T001 declares 'blocks', which Planning Document Format v2 removed. It is the exact inverse of depends_on and is derived on projection, never authored. Delete it."
+diagnostic.check_plan = "task T001 declares 'blocks', which Planning Document Format v2 removed. It is the exact inverse of depends_on and is derived on projection, never authored. Delete it."
+
+[[rule]]
+id = "v2-task-files-rejected"
+spec_quote = "- **A v2 task that declares `files` is invalid.** As with `mode`, the field is rejected"
+passing = "v2-baseline"
+covers = ["- **A v2 task that declares `files` is invalid.** As with `mode`, the field is rejected"]
+
+[[case]]
+id = "v2-task-declares-files"
+rule = "v2-task-files-rejected"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    work_items:\n      - Read the frontmatter under the v2 rule set.\n"
+replace = "    work_items:\n      - Read the frontmatter under the v2 rule set.\n    files:\n      likely_read:\n        - src/markdown.rs\n      likely_modify: []\n"
+diagnostic.planner = "task T001 declares 'files', which Planning Document Format v2 removed. It asked for a forecast of the files the task would touch; v2 requires the completion evidence to name the files it actually touched instead. Delete it."
+diagnostic.check_plan = "task T001 declares 'files', which Planning Document Format v2 removed. It asked for a forecast of the files the task would touch; v2 requires the completion evidence to name the files it actually touched instead. Delete it."
+
+# Worker projection leaves v2 entirely. One case per field rather than one for
+# the rule: the spec requires the diagnostic to name the version and the field,
+# so a single case would leave three of the four wordings unpinned.
+
+[[rule]]
+id = "v2-task-worker-projection-rejected"
+spec_quote = "- **A v2 task that declares `seed`, `allow`, `guest_class` or `seed_includes_plans` is"
+passing = "v2-baseline"
+covers = ["- **A v2 task that declares `seed`, `allow`, `guest_class` or `seed_includes_plans` is"]
+
+[[case]]
+id = "v2-task-declares-seed"
+rule = "v2-task-worker-projection-rejected"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    status: not_started\n    owner: null\n"
+replace = "    status: not_started\n    owner: null\n    seed:\n      - src\n"
+diagnostic.planner = "task T001 declares 'seed', which Planning Document Format v2 removed. v2 has no worker projection: the projection strips hidden_criteria unconditionally and no field widens what a worker may see. Delete it."
+diagnostic.check_plan = "task T001 declares 'seed', which Planning Document Format v2 removed. v2 has no worker projection: the projection strips hidden_criteria unconditionally and no field widens what a worker may see. Delete it."
+
+[[case]]
+id = "v2-task-declares-allow"
+rule = "v2-task-worker-projection-rejected"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    status: not_started\n    owner: null\n"
+replace = "    status: not_started\n    owner: null\n    allow:\n      - src/markdown.rs\n"
+diagnostic.planner = "task T001 declares 'allow', which Planning Document Format v2 removed. v2 has no worker projection: the projection strips hidden_criteria unconditionally and no field widens what a worker may see. Delete it."
+diagnostic.check_plan = "task T001 declares 'allow', which Planning Document Format v2 removed. v2 has no worker projection: the projection strips hidden_criteria unconditionally and no field widens what a worker may see. Delete it."
+
+[[case]]
+id = "v2-task-declares-guest-class"
+rule = "v2-task-worker-projection-rejected"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    status: not_started\n    owner: null\n"
+replace = "    status: not_started\n    owner: null\n    guest_class: linux\n"
+diagnostic.planner = "task T001 declares 'guest_class', which Planning Document Format v2 removed. v2 has no worker projection: the projection strips hidden_criteria unconditionally and no field widens what a worker may see. Delete it."
+diagnostic.check_plan = "task T001 declares 'guest_class', which Planning Document Format v2 removed. v2 has no worker projection: the projection strips hidden_criteria unconditionally and no field widens what a worker may see. Delete it."
+
+[[case]]
+id = "v2-task-declares-seed-includes-plans"
+rule = "v2-task-worker-projection-rejected"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    status: not_started\n    owner: null\n"
+replace = "    status: not_started\n    owner: null\n    seed_includes_plans: true\n"
+diagnostic.planner = "task T001 declares 'seed_includes_plans', which Planning Document Format v2 removed. v2 has no worker projection: the projection strips hidden_criteria unconditionally and no field widens what a worker may see. Delete it."
+diagnostic.check_plan = "task T001 declares 'seed_includes_plans', which Planning Document Format v2 removed. v2 has no worker projection: the projection strips hidden_criteria unconditionally and no field widens what a worker may see. Delete it."
+
+[[rule]]
+id = "v2-dag-ids-unique"
+spec_quote = "- Every `id` is unique and matches the id format."
+passing = "v2-baseline"
+covers = ["- Every `id` is unique and matches the id format."]
+
+[[case]]
+id = "v2-dag-duplicate-task-id"
+rule = "v2-dag-ids-unique"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "  - id: T002\n"
+replace = "  - id: T001\n"
+diagnostic.planner = "duplicate task id: T001"
+diagnostic.check_plan = "duplicate task id: T001"
+
+[[rule]]
+id = "v2-dag-depends-on-known-task"
+spec_quote = "- Every entry in `depends_on` refers to an existing task id."
+passing = "v2-baseline"
+covers = ["- Every entry in `depends_on` refers to an existing task id."]
+
+[[case]]
+id = "v2-dag-depends-on-unknown-task"
+rule = "v2-dag-depends-on-known-task"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    depends_on:\n      - T001\n"
+replace = "    depends_on:\n      - T009\n"
+diagnostic.planner = "task T002 depends on unknown task: T009"
+diagnostic.check_plan = "task T002 depends on unknown task: T009"
+
+[[rule]]
+id = "v2-dag-no-self-dependency"
+spec_quote = "- No task depends on itself."
+passing = "v2-baseline"
+covers = ["- No task depends on itself."]
+
+[[case]]
+id = "v2-dag-task-depends-on-itself"
+rule = "v2-dag-no-self-dependency"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    depends_on:\n      - T001\n"
+replace = "    depends_on:\n      - T002\n"
+diagnostic.planner = "task T002 depends on itself"
+diagnostic.check_plan = "task T002 depends on itself"
+
+[[rule]]
+id = "v2-dag-acyclic"
+spec_quote = "- The graph is acyclic."
+passing = "v2-baseline"
+covers = ["- The graph is acyclic."]
+
+[[case]]
+id = "v2-dag-dependency-cycle"
+rule = "v2-dag-acyclic"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    depends_on: []\n"
+replace = "    depends_on:\n      - T002\n"
+diagnostic.planner = "task graph has a dependency cycle"
+diagnostic.check_plan = "task graph has a dependency cycle"
+
+[[rule]]
+id = "v2-dag-dependency-status"
+spec_quote = "- A task marked `ready`, `in_progress`, or `done` must have all dependencies `done`."
+passing = "v2-baseline"
+covers = ["- A task marked `ready`, `in_progress`, or `done` must have all dependencies `done`."]
+
+[[case]]
+id = "v2-dag-dependency-not-done"
+rule = "v2-dag-dependency-status"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    title: Derive the downstream set\n    status: not_started\n"
+replace = "    title: Derive the downstream set\n    status: in_progress\n"
+diagnostic.planner = "task T002 is active or done but dependency T001 is not done"
+diagnostic.check_plan = "task T002 is 'in_progress' but dependency T001 is not done"
+
+[[rule]]
+id = "v2-dag-done-has-evidence"
+spec_quote = "- A task marked `done` must have non-empty `completion_evidence`."
+passing = "v2-baseline"
+covers = ["- A task marked `done` must have non-empty `completion_evidence`."]
+
+[[case]]
+id = "v2-dag-done-without-evidence"
+rule = "v2-dag-done-has-evidence"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "    status: not_started\n    owner: null\n"
+replace = "    status: done\n    owner: null\n"
+diagnostic.planner = "task T001 completion_evidence must be present and non-empty"
+diagnostic.check_plan = "task T001 is done but has no completion_evidence"
+
+[[rule]]
+id = "v2-task-details-bijection"
+spec_quote = "A validator enforces a bijection: every task in the YAML graph has a matching"
+passing = "v2-baseline"
+covers = []
+
+[[case]]
+id = "v2-task-details-orphan-subsection"
+rule = "v2-task-details-bijection"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "## T002 — Derive the downstream set\n"
+replace = "## T003 — Derive the downstream set\n"
+diagnostic.planner = "task T002 has no matching '## T002' section in Task Details"
+diagnostic.check_plan = "task T002 has no matching '## T002' section in Task Details"
+
+[[rule]]
+id = "v2-location-and-filename"
+spec_quote = "- **Location and filename.** Plans live under `docs/plans/`; the basename must match"
+passing = "v2-baseline"
+covers = []
+
+[[case]]
+id = "v2-non-conforming-filename"
+rule = "v2-location-and-filename"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+filename = "format-v2-baseline.md"
+diagnostic.planner = "filename 'format-v2-baseline.md' must match YYYY-MM-DD-<slug>.md"
+diagnostic.check_plan = "filename 'format-v2-baseline.md' must match YYYY-MM-DD-<slug>.md"
+
+[[rule]]
+id = "v2-hidden-criteria"
+spec_quote = "- **Hidden criteria** — the optional `hidden_criteria` list, its enums, its"
+passing = "v2-baseline"
+covers = []
+
+[[case]]
+id = "v2-hidden-criteria-missing-why-hidden"
+rule = "v2-hidden-criteria"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "        why_hidden: Revealing the canary would invalidate the concealment test.\n"
+replace = ""
+diagnostic.planner = "tasks[0].hidden_criteria[0]: missing field `why_hidden` at line 15 column 9"
+diagnostic.check_plan = "task T001 hidden_criteria[1] why_hidden must be a non-empty string"
+
+[[case]]
+id = "v2-hidden-criteria-evaluator-mismatch"
+rule = "v2-hidden-criteria"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "        evaluator: human_judgment\n        ask:"
+replace = "        evaluator: automated\n        ask:"
+diagnostic.planner = "task T001 hidden_criteria[1] evaluator 'automated' requires check, not ask"
+diagnostic.check_plan = "task T001 hidden_criteria[1] evaluator 'automated' requires check, not ask"
+
+[[rule]]
+id = "v2-verdict-fields"
+spec_quote = "- **Verdict fields** — the optional `verdict`, `rationale`, `evidence_needed`, and"
+passing = "v2-verdict-recorded"
+covers = []
+
+[[case]]
+id = "v2-verdict-outside-enum"
+rule = "v2-verdict-fields"
+baseline = "2026-09-10-format-v2-baseline.md"
+expect = "invalid"
+find = "        counterfactual: A worker given the canary could optimize output around it.\n"
+replace = "        counterfactual: A worker given the canary could optimize output around it.\n        verdict: maybe\n        rationale: unclear\n"
+diagnostic.planner = "invalid hidden criterion verdict: maybe"
+diagnostic.check_plan = "task T001 hidden_criteria[1] verdict must be one of ['fail', 'pass', 'undetermined']"
+
+# --- Statements the spec makes that carry no fixture --------------------------
+#
+# Named here so the absence is a recorded decision rather than an omission.
+
+[[unfixtured]]
+statement = "- **Failure dispositions** — the closed vocabulary a worker reports its outcome from."
+reason = "A plan does not carry a failure disposition; the vocabulary binds a worker's submit, so no plan can violate it."
+
+[[unfixtured]]
+statement = "- **Status transition rules** — the guidance transitions, and the requirement that a"
+reason = "Stated in the v1 section as guidance, not as an enforced rule; neither validator checks it."
+
+[[unfixtured]]
+statement = "- **What the validator does not check** — structure, not judgment."
+reason = "A statement of scope rather than a rule; it has no violating document."
+
+[[unfixtured]]
+statement = "- Read the full plan and verify a task's dependencies are `done` before starting it."
+reason = "The Execution Protocol contract's six bullets constrain the prose a plan carries, and neither validator reads that prose; only the section's presence is enforced, by v2-execution-protocol-required."

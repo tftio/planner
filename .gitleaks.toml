@@ -1,0 +1,11 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Ignore version-control and generated build artifacts"
+paths = [
+  '''(^|/)\.git/''',
+  '''(^|/)coverage/''',
+  '''(^|/)coverage-target/''',
+  '''(^|/)target/''',
+]

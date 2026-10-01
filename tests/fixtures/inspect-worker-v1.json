@@ -1,0 +1,66 @@
+{
+  "plan": {
+    "adr": {
+      "alternatives_considered": "None; this is a fixture.",
+      "consequences": "check-plan exits 0 on this file.",
+      "constraints": "None beyond the Planning Document Format contract.",
+      "context": "The validator must accept a task whose hidden_criteria block has a non-empty claim, a\nvalid criticality and evaluator, exactly one of check/ask consistent with the evaluator,\nand non-empty why_hidden and counterfactual.",
+      "decision": "Carry one task with one valid hidden criterion.",
+      "discussion_summary": "No external ticket exists; this is a check-plan validator fixture.",
+      "non_goals": "Exercising unrelated validation rules.",
+      "problem_statement": "Validator fixture: a task carrying a well-formed hidden_criteria block must validate.",
+      "ticket": "No ticket was provided.",
+      "title": "Hidden criteria valid fixture"
+    },
+    "execution_protocol": null,
+    "metadata": {
+      "bug": {
+        "affected_area": null,
+        "severity": "low",
+        "summary": "Fixture exercising a well-formed hidden_criteria block.",
+        "user_impact": null
+      },
+      "created_at": "2026-06-22",
+      "execution": {
+        "requires_operator_approval_before_implementation": true,
+        "requires_plan_updates_during_execution": true,
+        "task_graph_status": "draft"
+      },
+      "mode": "single",
+      "owner": "test",
+      "plan_format_version": 1,
+      "plan_id": "PLAN-20260622-hidden-criteria-valid",
+      "source": {
+        "external_id": null,
+        "imported_at": null,
+        "type": "manual",
+        "url": null
+      },
+      "status": "draft",
+      "title": "Hidden criteria valid fixture",
+      "updated_at": "2026-06-22"
+    },
+    "tasks": [
+      {
+        "acceptance_checks": [
+          "The thing is done."
+        ],
+        "blocks": [],
+        "completion_evidence": null,
+        "depends_on": [],
+        "description": "A task carrying a valid hidden criterion.\n",
+        "files": null,
+        "id": "T001",
+        "invariants": [
+          "The thing remains done."
+        ],
+        "owner": null,
+        "status": "not_started",
+        "title": "Do the thing",
+        "work_items": []
+      }
+    ]
+  },
+  "role": "worker",
+  "schema_version": 1
+}
