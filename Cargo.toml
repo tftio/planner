@@ -60,19 +60,19 @@ name = "planner"
 path = "src/main.rs"
 
 [dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 serde_yaml_ng = "0.10"
-thiserror = "2"
-anyhow = "1"
-clap = { version = "4", features = ["derive", "env"] }
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
-clap_complete = "4"
-tftio-lib = "0.4"
+thiserror = "2.0.21"
+anyhow = "1.0.104"
+clap = { version = "4.6.7", features = ["derive", "env"] }
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
+clap_complete = "4.6.11"
+tftio-lib = "0.4.3"
 
 [dev-dependencies]
-assert_cmd = "2"
-proptest = "1"
+assert_cmd = "2.2.2"
+proptest = "1.12.0"
 # Reads tests/fixtures/format/manifest.toml, the cross-validator fixture
 # contract that any planner consumer can run against its pinned build.
-toml = "0.9"
+toml = "0.9.12"
