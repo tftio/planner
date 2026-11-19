@@ -66,7 +66,7 @@ serde_yaml_ng = "0.10"
 thiserror = "2"
 anyhow = "1"
 clap = { version = "4", features = ["derive", "env"] }
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
+jiff = "0.2"
 clap_complete = "4"
 tftio-lib = "0.4"
 
