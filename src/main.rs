@@ -522,7 +522,7 @@ fn execute_mutation(
 }
 
 fn current_local_date() -> String {
-    chrono::Local::now().format("%Y-%m-%d").to_string()
+    jiff::Zoned::now().date().to_string()
 }
 
 fn render_change_report(
