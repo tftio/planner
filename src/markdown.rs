@@ -4,7 +4,6 @@ use std::collections::BTreeSet;
 use std::fmt::{self, Write as _};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_yaml_ng::Value as YamlValue;
 use tftio_lib::project::{NormalizedRemote, Slug, normalize_remote};
 
 use crate::diagnostic::{Diagnostic, DiagnosticCode, SourceLocation, SourceSpan};
@@ -14,6 +13,7 @@ use crate::model::{
     PlanId, PlanMetadata, PlanMode, PlanStatus, ProjectIdentity, Severity, SourceMetadata,
     SourceType, TaskFiles, TaskGraphStatus, TaskId, TaskStatus,
 };
+use crate::yaml::{self, EncodeError, Value as YamlValue};
 
 const FRONTMATTER_DELIMITER: &str = "---\n";
 const TASK_GRAPH_BEGIN: &str = "<!-- TASK_GRAPH:BEGIN -->";
@@ -75,7 +75,7 @@ impl ParseError {
 }
 
 /// Failure to render adapter-owned YAML DTOs.
-pub type RenderError = serde_yaml_ng::Error;
+pub type RenderError = EncodeError;
 
 #[derive(Debug, Clone)]
 struct Heading {
@@ -420,7 +420,7 @@ fn parse_tasks(source: &str, version: FormatVersion) -> Result<Vec<OperatorTask>
 ///
 /// Returns [`RenderError`] if adapter-owned YAML DTO serialization fails.
 pub fn render_markdown(plan: &OperatorPlan) -> Result<String, RenderError> {
-    let frontmatter = serde_yaml_ng::to_string(&raw_frontmatter(plan))?;
+    let frontmatter = yaml::to_string(&raw_frontmatter(plan))?;
     let version = plan.metadata.format_version;
     let raw_graph = RawTaskGraph {
         tasks: plan
@@ -429,7 +429,7 @@ pub fn render_markdown(plan: &OperatorPlan) -> Result<String, RenderError> {
             .map(|task| raw_task(task, version))
             .collect(),
     };
-    let graph = serde_yaml_ng::to_string(&raw_graph)?;
+    let graph = yaml::to_string(&raw_graph)?;
     let mut output = String::new();
     output.push_str("---\n");
     output.push_str(frontmatter.trim_end());
@@ -621,8 +621,8 @@ fn decode_yaml<'a, T>(source: &str, yaml: &'a str, base: usize) -> Result<T, Par
 where
     T: Deserialize<'a>,
 {
-    serde_yaml_ng::from_str(yaml).map_err(|error| {
-        let relative = error.location().map_or(0, |location| location.index());
+    yaml::from_str(yaml).map_err(|error| {
+        let relative = error.offset();
         error_at(
             source,
             DiagnosticCode::InvalidYaml,
@@ -1223,26 +1223,7 @@ fn declared_when(required: bool, value: Option<String>) -> DeclaredText {
 }
 
 fn yaml_text(value: YamlValue) -> String {
-    match value {
-        YamlValue::Null => "null".to_owned(),
-        YamlValue::Bool(value) => value.to_string(),
-        YamlValue::Number(value) => value.to_string(),
-        YamlValue::String(value) => value,
-        YamlValue::Sequence(values) => format!(
-            "[{}]",
-            values
-                .into_iter()
-                .map(yaml_text)
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-        YamlValue::Mapping(values) => values
-            .into_iter()
-            .map(|(key, value)| format!("{}: {}", yaml_text(key), yaml_text(value)))
-            .collect::<Vec<_>>()
-            .join(", "),
-        YamlValue::Tagged(value) => yaml_text(value.value),
-    }
+    value.into_text()
 }
 
 fn render_section(output: &mut String, level: u8, title: &str, body: &str) {
@@ -1432,16 +1413,16 @@ mod tests {
         // The three states must survive a round trip through YAML, because the
         // v2 rule that `owner` and `completion_evidence` be *present* and may be
         // null is only enforceable while absence and null stay distinct.
-        let absent = serde_yaml_ng::from_str::<super::DeclaredText>("~")
+        let absent = crate::yaml::from_str::<super::DeclaredText>("~")
             .map(|_| ())
             .is_ok();
         assert!(absent);
         assert_eq!(
-            serde_yaml_ng::from_str::<super::DeclaredText>("null").ok(),
+            crate::yaml::from_str::<super::DeclaredText>("null").ok(),
             Some(super::DeclaredText::Declared(None))
         );
         assert_eq!(
-            serde_yaml_ng::from_str::<super::DeclaredText>("jfb").ok(),
+            crate::yaml::from_str::<super::DeclaredText>("jfb").ok(),
             Some(super::DeclaredText::Declared(Some("jfb".to_owned())))
         );
         assert!(super::DeclaredText::default().is_absent());
@@ -1449,11 +1430,11 @@ mod tests {
         // Serialized outside a struct that skips it, an absent key is null:
         // the only spelling that cannot be mistaken for a value.
         assert_eq!(
-            serde_yaml_ng::to_string(&super::DeclaredText::Absent).ok(),
+            crate::yaml::to_string(&super::DeclaredText::Absent).ok(),
             Some("null\n".to_owned())
         );
         assert_eq!(
-            serde_yaml_ng::to_string(&super::DeclaredText::Declared(Some("jfb".to_owned()))).ok(),
+            crate::yaml::to_string(&super::DeclaredText::Declared(Some("jfb".to_owned()))).ok(),
             Some("jfb\n".to_owned())
         );
     }
@@ -1489,7 +1470,7 @@ mod tests {
 
     #[test]
     fn yaml_list_values_have_deterministic_text_projection() {
-        let values = serde_yaml_ng::from_str::<Vec<super::YamlValue>>(
+        let values = crate::yaml::from_str::<Vec<super::YamlValue>>(
             "- null\n- true\n- 42\n- text\n- [one, two]\n- {key: value}\n- !tag tagged\n",
         );
         assert!(values.is_ok());

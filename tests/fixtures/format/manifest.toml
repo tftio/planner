@@ -107,7 +107,7 @@ find = "plan_format_version: 1"
 replace = "plan_format_version: 1.0"
 divergence = "check-plan"
 why = "Known v1 divergence, recorded by D010: `1.0 != 1` is false in Python, so check-plan accepts it."
-diagnostic.planner = "plan_format_version: invalid type: floating point `1.0`, expected u32 at line 1 column 22"
+diagnostic.planner = "invalid u32 at line 1, column 22"
 
 # --- v2 rules -----------------------------------------------------------------
 
@@ -156,7 +156,7 @@ baseline = "2026-09-10-format-v2-baseline.md"
 expect = "invalid"
 find = "plan_format_version: 2"
 replace = "plan_format_version: 2.0"
-diagnostic.planner = "plan_format_version: invalid type: floating point `2.0`, expected u32 at line 1 column 22"
+diagnostic.planner = "invalid u32 at line 1, column 22"
 diagnostic.check_plan = "frontmatter plan_format_version must be 1 or 2"
 
 [[rule]]
@@ -490,7 +490,7 @@ baseline = "2026-09-10-format-v2-baseline.md"
 expect = "invalid"
 find = "    depends_on: []\n"
 replace = "    depends_on: T002\n"
-diagnostic.planner = "tasks[0].depends_on: invalid type: string \"T002\", expected a sequence at line 6 column 17"
+diagnostic.planner = "expected sequence start at line 6, column 17"
 diagnostic.check_plan = "task T001 depends_on must be a list"
 
 [[rule]]
@@ -795,7 +795,7 @@ baseline = "2026-09-10-format-v2-baseline.md"
 expect = "invalid"
 find = "        why_hidden: Revealing the canary would invalidate the concealment test.\n"
 replace = ""
-diagnostic.planner = "tasks[0].hidden_criteria[0]: missing field `why_hidden` at line 15 column 9"
+diagnostic.planner = "missing field `why_hidden` at line 19, column 9"
 diagnostic.check_plan = "task T001 hidden_criteria[1] why_hidden must be a non-empty string"
 
 [[case]]

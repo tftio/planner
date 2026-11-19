@@ -11,6 +11,7 @@ pub mod resources;
 pub mod state;
 pub mod validate;
 pub mod write;
+pub mod yaml;
 
 pub use diagnostic::{Diagnostic, DiagnosticCode, DiagnosticSeverity, SourceLocation, SourceSpan};
 pub use doctor::{PlannerDoctor, doctor_report};

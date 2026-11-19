@@ -1,10 +1,10 @@
 //! Worker-safe Markdown projection.
 
-use serde_yaml_ng::{Mapping, Value};
 use thiserror::Error;
 
 use crate::markdown::ParseError;
 use crate::validate::validate_markdown;
+use crate::yaml::{self, DecodeError, EncodeError, Value};
 
 const TASK_GRAPH_BEGIN: &str = "<!-- TASK_GRAPH:BEGIN -->";
 const TASK_GRAPH_END: &str = "<!-- TASK_GRAPH:END -->";
@@ -21,9 +21,12 @@ pub enum ProjectionError {
     /// The task-graph marker or YAML-fence structure is malformed.
     #[error("{0}")]
     Structure(&'static str),
-    /// The task-graph YAML could not be decoded or encoded.
+    /// The task-graph YAML could not be decoded.
     #[error(transparent)]
-    Yaml(#[from] serde_yaml_ng::Error),
+    YamlDecode(#[from] DecodeError),
+    /// The projected task graph could not be encoded as YAML.
+    #[error(transparent)]
+    YamlEncode(#[from] EncodeError),
 }
 
 /// Remove all hidden criteria from task-graph YAML while preserving surrounding Markdown.
@@ -70,9 +73,9 @@ pub fn project_worker_markdown(source: &str) -> Result<String, ProjectionError> 
     let yaml = block
         .get(opening_end..closing_start)
         .ok_or(ProjectionError::Structure("invalid YAML fence span"))?;
-    let mut graph: Value = serde_yaml_ng::from_str(yaml)?;
+    let mut graph: Value = yaml::from_str(yaml)?;
     strip_hidden_criteria(&mut graph)?;
-    let rendered = serde_yaml_ng::to_string(&graph)?;
+    let rendered = yaml::to_string(&graph)?;
     let mut projected_block = String::new();
     projected_block.push_str(block.get(..opening_end).unwrap_or_default());
     projected_block.push_str(rendered.trim_end());
@@ -86,23 +89,8 @@ pub fn project_worker_markdown(source: &str) -> Result<String, ProjectionError> 
 }
 
 fn strip_hidden_criteria(graph: &mut Value) -> Result<(), ProjectionError> {
-    let mapping = graph.as_mapping_mut().ok_or(ProjectionError::Structure(
-        "task graph YAML must be a mapping",
-    ))?;
-    let tasks = mapping
-        .get_mut(Value::String("tasks".to_owned()))
-        .and_then(Value::as_sequence_mut)
-        .ok_or(ProjectionError::Structure(
-            "task graph YAML must contain a tasks list",
-        ))?;
-    for task in tasks {
-        if let Some(task_mapping) = task.as_mapping_mut() {
-            remove_hidden(task_mapping);
-        }
+    for task in graph.tasks_mut().map_err(ProjectionError::Structure)? {
+        task.remove_key("hidden_criteria");
     }
     Ok(())
-}
-
-fn remove_hidden(task: &mut Mapping) {
-    task.remove(Value::String("hidden_criteria".to_owned()));
 }
