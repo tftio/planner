@@ -11,13 +11,6 @@ git-fetch-with-cli = true
 # repository is installed from git without a tag, so a fresh resolve is the
 # normal path, not an edge case. Fail instead.
 yanked = "deny"
-# INVARIANT-BYPASS(RS-006): unsafe-libyaml is unmaintained and has no safe
-# upgrade. It enters only through serde_yaml_ng, which parses and renders plan
-# frontmatter and task graphs. Remove this entry when serde_yaml_ng is replaced
-# with a YAML crate written in safe Rust.
-ignore = [
-  { id = "RUSTSEC-2024-0449", reason = "unsafe-libyaml via serde_yaml_ng; replacement tracked separately" },
-]
 
 [licenses]
 allow = [
